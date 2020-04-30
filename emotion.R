@@ -1,5 +1,17 @@
+library(FSelectorRcpp)
+library(ranger)
+library(Boruta)
+library(ggplot2)
+library(Information)
+library(woe)
+library(InformationValue)
+library(corrplot)
+library(dplyr)
+
+#1、情感词典初步处理
 train<- read.csv("./train.csv",quote = "",sep = "\"", header = T, stringsAsFactors = F)
 #1、情感正向词，词组+打“+1”-label
+dic=read.csv(file="dic.csv")
 pos <- read.csv("./pos.csv", header = T, sep = ",", stringsAsFactors = F)
 weight <- rep(1, length(pos[,1]))
 pos <- cbind(pos, weight)
@@ -44,6 +56,33 @@ testterm <- testterm[!testterm$term %in% stopword,]#去除停用词
 testterm <- join(testterm, posneg)
 testterm <- testterm[!is.na(testterm$weight), ]
 head(testterm)
+
+SOF.sub2<-train
+#测试集训练集
+SOF.sub2.shuffle<-SOF.sub2[sample(nrow(SOF.sub2)),]#乱序排列
+folds2<-cut(seq(1,nrow(SOF.sub2.shuffle)),breaks = 10,labels = FALSE)#等序分成十段
+table(folds2)#发现均匀分布
+for(i in 1:10){
+  i<-5
+  testIndexes<-which(folds2==i,arr.ind = TRUE)
+  testdata2<-SOF.sub2.shuffle[testIndexes,]
+  traindata2<-SOF.sub2.shuffle[-testIndexes,]
+}
+#install.packages("Boruta")
+library(Boruta)
+#install.packages("ranger")
+library(ranger)
+control <- rfeControl(functions=rfFuncs, method="cv", number=14)
+traindata2=na.omit(traindata2)
+testdata2=na.omit(testdata2)
+testdata2=testdata2[,-9]
+traindata2=traindata2[,-9]
+results <- rfe(traindata2[,2:13], traindata2[,1], sizes=c(2:13), rfeControl=control)
+print(results)
+
+plot(rfe.train, type=c("g", "o"), cex = 1.0, col = 1:11)
+plot(results, type=c("g", "o"), cex = 1.0, col = 1:11)
+
 #2、计算情感指数
 dictresult <- aggregate(weight ~ id, data = testterm, sum)
 dictlabel <- rep(-1, length(dictresult[, 1]))
